@@ -2,6 +2,8 @@ import time
 import random
 import logging
 import discord
+from discord_slash import SlashCommand
+from discord_slash.utils.manage_commands import create_option
 import asyncio
 import nest_asyncio
 nest_asyncio.apply()
@@ -18,6 +20,7 @@ TOKEN = <TOKEN>
 API_KEYS = <API_KEYS>
 
 client = discord.Client()
+slash = SlashCommand(client, sync_commands=True)
 
 global stop_spam
 stop_spam = {}
@@ -60,6 +63,13 @@ async def spam(sentence, message, times):
         if stop_spam[message.channel.id]:
             break
         await message.channel.send(sentence)
+        time.sleep(1)
+
+async def spam1(sentence, ctx, times):
+    for i in range(0, times):
+        if stop_spam[ctx.channel.id]:
+            break
+        await ctx.send(sentence)
         time.sleep(1)
 
 
@@ -136,7 +146,7 @@ reTuRN The tEXt lIkE tHIS (RAnDom cAPitaLIZatIoN)
 `-spam <text> <# of times>`
 spam the text n times  
 `-stopall`
-stop all ongoing spamming       
+stop all ongoing spamming
 `-dab`
 <o/        
 `-bw <player name>`
@@ -213,7 +223,7 @@ you're not allowed to say ez!""")
         stop_spam[message.channel.id] = True
         loop = asyncio.get_event_loop()
         loop.call_later(2, start, message.channel.id)
-    elif message.content == ('-dab'):
+    elif message.content == '-dab':
         await message.channel.send("<o/")
     elif message.content.startswith('-bw '):
         player = requests.get(
@@ -523,6 +533,490 @@ async def on_ready():
     print('------')
     await client.change_presence(status=discord.Status.online,
                                  activity=discord.Game("-help"))
+                                 
+@slash.slash(name="help",
+            description="Show Spongebot help")
+async def help(ctx):
+    await ctx.send(content="""`-mock <text>` or `-m <text>`
+rEtUrN tHe TeXt LiKe ThIs
+`-rmock <text>` or `-rm <text>`
+reTuRN The tEXt lIkE tHIS (RAnDom cAPitaLIZatIoN)     
+`-spam <text> <# of times>`
+spam the text n times  
+`-stopall`
+stop all ongoing spamming       
+`-dab`
+<o/        
+`-bw <player name>`
+return a player's Bedwars stats        
+`-bwfkdr <player name>`
+return a player's Bedwars Final-Kill-to-Death-Ratio
+`-bwkdr <player name>`
+return a player's Bedwars Kill-to-Death-Ratio
+`-bwwl <player name>`
+return a player's Bedwars Win-to-Loss-Ratio
+`-sw <player name>`
+return a player's Skywars stats
+`-swkdr <player name>`
+return a player's Skywars Kill-to-Death-Ratio
+`-swwl <player name>`
+return a player's Skywars Win-to-Loss-Ratio
+`-sb <player name> <profile (optional)>`
+return a player's Skyblock stats
+`ez`
+you're not allowed to say ez!""")
 
+@slash.slash(name="mock",
+            description="rEtUrN tHe TeXt LiKe ThIs",
+            options=[
+               create_option(
+                 name="text",
+                 description="The text to mock",
+                 option_type=3,
+                 required=True
+               )
+             ])
+async def slash_mock(ctx, text: str):
+    await ctx.send(mock(text, 0).format(ctx))
+
+@slash.slash(name="rmock",
+            description="reTuRN The tEXt lIkE tHIS (RAnDom cAPitaLIZatIoN)",
+            options=[
+               create_option(
+                 name="text",
+                 description="The text to mock",
+                 option_type=3,
+                 required=True
+               )
+             ])
+async def rmock(ctx, text: str):
+    await ctx.send(mock(text, 1).format(ctx))
+
+@slash.slash(name="spam",
+            description="Spam the text n times",
+            options=[
+               create_option(
+                 name="text",
+                 description="The text to spam",
+                 option_type=3,
+                 required=True
+               ),
+               create_option(
+                 name="n",
+                 description="The number of times to spam the text",
+                 option_type=4,
+                 required=True
+               )
+             ])
+async def slash_spam(ctx, text: str, n: int):
+    if '@' not in text:
+        if n <= 100:
+
+            def stop():
+                task.cancel()
+
+            stop_spam[ctx.channel.id] = False
+
+            await spam1(text, ctx, n)
+
+        else:
+            await ctx.send("You can only spam up to 100 times")
+    else:
+        await ctx.send("You cannot spam a mention")
+
+@slash.slash(name="stopall",
+            description="Stop all ongoing spamming")
+async def stopall(ctx):
+    stop_spam[ctx.channel.id] = True
+    loop = asyncio.get_event_loop()
+    loop.call_later(2, start, ctx.channel.id)
+
+@slash.slash(name="dab",
+            description="<o/")
+async def dab(ctx):
+    await ctx.send("<o/")
+
+@slash.slash(name="bw",
+            description="Return a player's Bedwars stats",
+            options=[
+               create_option(
+                 name="name",
+                 description="The player's name (ign)",
+                 option_type=3,
+                 required=True
+               )
+             ])
+async def bw(ctx, name: str):
+    player = requests.get(
+        "https://api.hypixel.net/player?key=" + random.choice(API_KEYS) + "&name="
+        + name).json()
+    if not player['success']:
+        await ctx.send(player['cause'])
+    else:
+        player = player['player']
+        if player is not None:
+            await ctx.send("**" + prefix(player) +
+                                    name +
+                                    "\'s Bedwars Stats**")
+            if "Bedwars" in player["stats"]:
+                try:
+                    await ctx.channel.send(
+                        "Final-Kill-to-Death-Ratio: " +
+                        str(player["stats"]["Bedwars"]["final_kills_bedwars"])
+                        + "/" + str(player["stats"]["Bedwars"]
+                                    ["final_deaths_bedwars"]) + " = **" +
+                        str(player["stats"]["Bedwars"]["final_kills_bedwars"] /
+                            player["stats"]["Bedwars"]["final_deaths_bedwars"])
+                        + "**")
+                    await ctx.channel.send(
+                        "Kill-to-Death-Ratio: " +
+                        str(player["stats"]["Bedwars"]["kills_bedwars"]) +
+                        "/" +
+                        str(player["stats"]["Bedwars"]["deaths_bedwars"]) +
+                        " = **" +
+                        str(player["stats"]["Bedwars"]["kills_bedwars"] /
+                            player["stats"]["Bedwars"]["deaths_bedwars"]) +
+                        "**")
+                    await ctx.channel.send(
+                        "Win-to-Loss-Ratio: " +
+                        str(player["stats"]["Bedwars"]["wins_bedwars"]) + "/" +
+                        str(player["stats"]["Bedwars"]["losses_bedwars"]) +
+                        " = **" +
+                        str(player["stats"]["Bedwars"]["wins_bedwars"] /
+                            player["stats"]["Bedwars"]["losses_bedwars"]) +
+                        "**")
+                except KeyError:
+                    await ctx.send(
+                        name +
+                        " hasn't played Bedwars")
+            else:
+                await ctx.send(
+                    name + " hasn't played Bedwars")
+        else:
+            await ctx.send(
+                "Player doesn't exist or hasn't logged on to Hypixel")
+
+@slash.slash(name="bwfkdr",
+            description="Return a player's Bedwars Final-Kill-to-Death-Ratio",
+            options=[
+               create_option(
+                 name="name",
+                 description="The player's name (ign)",
+                 option_type=3,
+                 required=True
+               )
+             ])
+async def bwfkdr(ctx, name: str):
+    player = requests.get(
+            "https://api.hypixel.net/player?key=" + random.choice(API_KEYS) + "&name="
+            + name).json()
+    if not player['success']:
+        await ctx.send(player['cause'])
+    else:
+        player = player['player']
+        if player is not None:
+            if "Bedwars" in player["stats"] and "final_kills_bedwars" in player[
+                    "stats"]["Bedwars"]:
+                await ctx.send(
+                    prefix(player) + name +
+                    "\'s Bedwars Final-Kill-to-Death-Ratio: " +
+                    str(player["stats"]["Bedwars"]["final_kills_bedwars"]) +
+                    "/" +
+                    str(player["stats"]["Bedwars"]["final_deaths_bedwars"]) +
+                    " = **" +
+                    str(player["stats"]["Bedwars"]["final_kills_bedwars"] /
+                        player["stats"]["Bedwars"]["final_deaths_bedwars"]) +
+                    "**")
+            else:
+                await ctx.send(
+                    name + " hasn't played Bedwars")
+        else:
+            await ctx.send(
+                "Player doesn't exist or hasn't logged on to Hypixel")
+
+@slash.slash(name="bwkdr",
+            description="Return a player's Bedwars Kill-to-Death-Ratio",
+            options=[
+               create_option(
+                 name="name",
+                 description="The player's name (ign)",
+                 option_type=3,
+                 required=True
+               )
+             ])
+async def bwkdr(ctx, name: str):
+    player = requests.get(
+            "https://api.hypixel.net/player?key=" + random.choice(API_KEYS) + "&name="
+            + name).json()
+    if not player['success']:
+        await ctx.send(player['cause'])
+    else:
+        player = player['player']
+        if player is not None:
+            if "Bedwars" in player["stats"] and "kills_bedwars" in player[
+                    "stats"]["Bedwars"]:
+                await ctx.send(
+                    prefix(player) + name +
+                    "\'s Bedwars Kill-to-Death-Ratio: " +
+                    str(player["stats"]["Bedwars"]["kills_bedwars"]) + "/" +
+                    str(player["stats"]["Bedwars"]["deaths_bedwars"]) +
+                    " = **" +
+                    str(player["stats"]["Bedwars"]["kills_bedwars"] /
+                        player["stats"]["Bedwars"]["deaths_bedwars"]) + "**")
+            else:
+                await ctx.send(
+                    name + " hasn't played Bedwars")
+        else:
+            await ctx.send(
+                "Player doesn't exist or hasn't logged on to Hypixel")
+
+@slash.slash(name="bwwl",
+            description="Return a player's Bedwars Win-to-Loss-Ratio",
+            options=[
+               create_option(
+                 name="name",
+                 description="The player's name (ign)",
+                 option_type=3,
+                 required=True
+               )
+             ])
+async def bwwl(ctx, name: str):
+    player = requests.get(
+            "https://api.hypixel.net/player?key=" + random.choice(API_KEYS) + "&name="
+            + name).json()
+    if not player['success']:
+        await ctx.send(player['cause'])
+    else:
+        player = player['player']
+        if player is not None:
+            if "Bedwars" in player["stats"] and "losses_bedwars" in player[
+                    "stats"]["Bedwars"]:
+                await ctx.send(
+                    prefix(player) + name +
+                    "\'s Bedwars Win-to-Loss-Ratio: " +
+                    str(player["stats"]["Bedwars"]["wins_bedwars"]) + "/" +
+                    str(player["stats"]["Bedwars"]["losses_bedwars"]) +
+                    " = **" +
+                    str(player["stats"]["Bedwars"]["wins_bedwars"] /
+                        player["stats"]["Bedwars"]["losses_bedwars"]) + "**")
+            else:
+                await ctx.send(
+                    name + " hasn't played Bedwars")
+        else:
+            await ctx.send(
+                "Player doesn't exist or hasn't logged on to Hypixel")
+
+@slash.slash(name="sw",
+            description="Return a player's Skywars stats",
+            options=[
+               create_option(
+                 name="name",
+                 description="The player's name (ign)",
+                 option_type=3,
+                 required=True
+               )
+             ])
+async def sw(ctx, name: str):
+    player = requests.get(
+            "https://api.hypixel.net/player?key=" + random.choice(API_KEYS) + "&name="
+            + name).json()
+    if not player['success']:
+        await ctx.send(player['cause'])
+    else:
+        player = player['player']
+        if player is not None:
+            await ctx.send("**" + prefix(player) +
+                                    name +
+                                    "\'s SkyWars Stats**")
+            if "SkyWars" in player["stats"]:
+                try:
+                    await ctx.channel.send(
+                        "Kill-to-Death-Ratio: " +
+                        str(player["stats"]["SkyWars"]["kills"]) + "/" +
+                        str(player["stats"]["SkyWars"]["deaths"]) + " = **" +
+                        str(player["stats"]["SkyWars"]["kills"] /
+                            player["stats"]["SkyWars"]["deaths"]) + "**")
+                    await ctx.channel.send(
+                        "Win-to-Loss-Ratio: " +
+                        str(player["stats"]["SkyWars"]["wins"]) + "/" +
+                        str(player["stats"]["SkyWars"]["losses"]) + " = **" +
+                        str(player["stats"]["SkyWars"]["wins"] /
+                            player["stats"]["SkyWars"]["losses"]) + "**")
+                except KeyError:
+                    await ctx.send(
+                        name +
+                        " hasn't played SkyWars")
+            else:
+                await ctx.send(
+                    name + " hasn't played SkyWars")
+        else:
+            await ctx.send(
+                "Player doesn't exist or hasn't logged on to Hypixel")
+
+@slash.slash(name="swkdr",
+            description="Return a player's Skywars Kill-to-Death-Ratio",
+            options=[
+               create_option(
+                 name="name",
+                 description="The player's name (ign)",
+                 option_type=3,
+                 required=True
+               )
+             ])
+async def swkdr(ctx, name: str):
+    player = requests.get(
+            "https://api.hypixel.net/player?key=" + random.choice(API_KEYS) + "&name="
+            + name).json()
+    if not player['success']:
+        await ctx.send(player['cause'])
+    else:
+        player = player['player']
+        if player is not None:
+            if "SkyWars" in player["stats"]:
+                try:
+                    await ctx.send(
+                        prefix(player) + name +
+                        "\'s SkyWars Kill-to-Death-Ratio: " +
+                        str(player["stats"]["SkyWars"]["kills"]) + "/" +
+                        str(player["stats"]["SkyWars"]["deaths"]) + " = **" +
+                        str(player["stats"]["SkyWars"]["kills"] /
+                            player["stats"]["SkyWars"]["deaths"]) + "**")
+                except KeyError:
+                    await ctx.send(
+                        name +
+                        " hasn't played SkyWars")
+            else:
+                await ctx.send(
+                    name + " hasn't played SkyWars")
+        else:
+            await ctx.send(
+                "Player doesn't exist or hasn't logged on to Hypixel")
+
+@slash.slash(name="swwl",
+            description="Return a player's Skywars Win-to-Loss-Ratio",
+            options=[
+               create_option(
+                 name="name",
+                 description="The player's name (ign)",
+                 option_type=3,
+                 required=True
+               )
+             ])
+async def swwl(ctx, name: str):
+    player = requests.get(
+            "https://api.hypixel.net/player?key=" + random.choice(API_KEYS) + "&name="
+            + name).json()
+    if not player['success']:
+        await ctx.send(player['cause'])
+    else:
+        player = player['player']
+        if player is not None:
+            if "SkyWars" in player["stats"]:
+                try:
+                    await ctx.send(
+                        prefix(player) + name +
+                        "\'s SkyWars Win-to-Loss-Ratio: " +
+                        str(player["stats"]["SkyWars"]["wins"]) + "/" +
+                        str(player["stats"]["SkyWars"]["losses"]) + " = **" +
+                        str(player["stats"]["SkyWars"]["wins"] /
+                            player["stats"]["SkyWars"]["losses"]) + "**")
+                except KeyError:
+                    await ctx.send(
+                        name +
+                        " hasn't played SkyWars")
+            else:
+                await ctx.send(
+                    name + " hasn't played SkyWars")
+        else:
+            await ctx.send(
+                "Player doesn't exist or hasn't logged on to Hypixel")
+
+@slash.slash(name="sb",
+            description="Return a player's Skyblock stats",
+            options=[
+               create_option(
+                 name="name",
+                 description="The player's name (ign)",
+                 option_type=3,
+                 required=True
+               ),
+               create_option(
+                 name="profile",
+                 description="The Skyblock profile name (optional)",
+                 option_type=3,
+                 required=False
+               )
+             ])
+async def sb(ctx, name: str, profile_name = None):
+    profile_entered = profile_name != False
+    player = requests.get(
+        "https://api.hypixel.net/player?key=" + random.choice(API_KEYS) + "&name="
+        + name).json()
+    if not player['success']:
+        await ctx.send(player['cause'])
+    else:
+        player = player['player']
+        if player is not None:
+            if "SkyBlock" in player["stats"]:
+                profile_names = {}
+                for profile in player["stats"]["SkyBlock"]["profiles"]:
+                    profile_names[player["stats"]["SkyBlock"]["profiles"][
+                        profile]["cute_name"]] = player["stats"]["SkyBlock"][
+                            "profiles"][profile]["profile_id"]
+                # print(profile_names)
+
+                async def sbstats(profile_id):
+                    sbprofile = requests.get(
+                        "https://api.hypixel.net/skyblock/profile?key=" + random.choice(API_KEYS) + "&profile="
+                        + profile_id).json()["profile"]
+                    sbplayer = sbprofile["members"][player["uuid"]]
+                    await ctx.send(
+                        "**" + prefix(player) + name +
+                        "\'s Skyblock Stats on " + player["stats"]["SkyBlock"]
+                        ["profiles"][profile_id]["cute_name"] + "**")
+                    await ctx.channel.send(
+                        "<" + " | ".join(list(profile_names.keys())) + ">")
+                    try:
+                        await ctx.channel.send("Money in purse: **" + str(
+                            locale.currency(sbplayer["coin_purse"],
+                                            symbol=False,
+                                            grouping=True)) + "**")
+                        await ctx.channel.send("Money in bank: **" + str(
+                            locale.currency(sbprofile["banking"]["balance"],
+                                            symbol=False,
+                                            grouping=True)) + "**")
+                    except KeyError:
+                        await ctx.channel.send(
+                            "This player has not enabled the banking API on this profile"
+                        )
+                    try:
+                        sbstats = sbplayer["stats"]
+                        await ctx.channel.send("Deaths: **" + str(
+                            locale.currency(sbstats["deaths"],
+                                            symbol=False,
+                                            grouping=True)) + "**")
+                        await ctx.channel.send("Kills: **" + str(
+                            locale.currency(sbstats["kills"],
+                                            symbol=False,
+                                            grouping=True)) + "**")
+                    except KeyError:
+                        await ctx.channel.send(
+                            "This player has not enabled the stats API on this profile"
+                        )
+
+                if len(player["stats"]["SkyBlock"]["profiles"]) == 1 or profile_name == None:
+                    await sbstats(list(profile_names.values())[0])
+                elif not profile_name.capitalize() in list(
+                        profile_names.keys()):
+                    await ctx.send("Profile doesn't exist")
+                else:
+                    profile_id = profile_names[profile_name.capitalize()]
+                    await sbstats(profile_id)
+            else:
+                await ctx.send(
+                    name + " hasn't played Skyblock")
+        else:
+            await ctx.send(
+                "Player doesn't exist or hasn't logged on to Hypixel")
 
 client.run(TOKEN)
